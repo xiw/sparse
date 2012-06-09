@@ -236,17 +236,17 @@ static LLVMTypeRef symbol_type(LLVMModuleRef module, struct symbol *sym)
 
 static LLVMTypeRef insn_symbol_type(LLVMModuleRef module, struct instruction *insn)
 {
-	if (insn->type)
-		return symbol_type(module, insn->type);
+	if (insn->target && insn->target->ctype)
+		return symbol_type(module, insn->target->ctype);
 
-	switch (insn->size) {
+	switch (instruction_size(insn)) {
 		case 8:		return LLVMInt8Type();
 		case 16:	return LLVMInt16Type();
 		case 32:	return LLVMInt32Type();
 		case 64:	return LLVMInt64Type();
 
 		default:
-			die("invalid bit size %d", insn->size);
+			die("invalid bit size %d", instruction_size(insn));
 			break;
 	}
 
@@ -364,7 +364,7 @@ static LLVMTypeRef pseudo_type(struct function *fn, struct instruction *insn, ps
 
 	switch (pseudo->type) {
 	case PSEUDO_REG:
-		result = symbol_type(fn->module, pseudo->def->type);
+		result = symbol_type(fn->module, pseudo->def->target->ctype);
 		break;
 	case PSEUDO_SYM: {
 		struct symbol *sym = pseudo->sym;
@@ -455,75 +455,75 @@ static void output_op_binary(struct function *fn, struct instruction *insn)
 	switch (insn->opcode) {
 	/* Binary */
 	case OP_ADD:
-		if (symbol_is_fp_type(insn->type))
+		if (symbol_is_fp_type(insn->target->ctype))
 			target = LLVMBuildFAdd(fn->builder, lhs, rhs, target_name);
 		else
 			target = LLVMBuildAdd(fn->builder, lhs, rhs, target_name);
 		break;
 	case OP_SUB:
-		if (symbol_is_fp_type(insn->type))
+		if (symbol_is_fp_type(insn->target->ctype))
 			target = LLVMBuildFSub(fn->builder, lhs, rhs, target_name);
 		else
 			target = LLVMBuildSub(fn->builder, lhs, rhs, target_name);
 		break;
 	case OP_MULU:
-		if (symbol_is_fp_type(insn->type))
+		if (symbol_is_fp_type(insn->target->ctype))
 			target = LLVMBuildFMul(fn->builder, lhs, rhs, target_name);
 		else
 			target = LLVMBuildMul(fn->builder, lhs, rhs, target_name);
 		break;
 	case OP_MULS:
-		assert(!symbol_is_fp_type(insn->type));
+		assert(!symbol_is_fp_type(insn->target->ctype));
 		target = LLVMBuildMul(fn->builder, lhs, rhs, target_name);
 		break;
 	case OP_DIVU:
-		if (symbol_is_fp_type(insn->type))
+		if (symbol_is_fp_type(insn->target->ctype))
 			target = LLVMBuildFDiv(fn->builder, lhs, rhs, target_name);
 		else
 			target = LLVMBuildUDiv(fn->builder, lhs, rhs, target_name);
 		break;
 	case OP_DIVS:
-		assert(!symbol_is_fp_type(insn->type));
+		assert(!symbol_is_fp_type(insn->target->ctype));
 		target = LLVMBuildSDiv(fn->builder, lhs, rhs, target_name);
 		break;
 	case OP_MODU:
-		assert(!symbol_is_fp_type(insn->type));
+		assert(!symbol_is_fp_type(insn->target->ctype));
 		target = LLVMBuildURem(fn->builder, lhs, rhs, target_name);
 		break;
 	case OP_MODS:
-		assert(!symbol_is_fp_type(insn->type));
+		assert(!symbol_is_fp_type(insn->target->ctype));
 		target = LLVMBuildSRem(fn->builder, lhs, rhs, target_name);
 		break;
 	case OP_SHL:
-		assert(!symbol_is_fp_type(insn->type));
+		assert(!symbol_is_fp_type(insn->target->ctype));
 		target = LLVMBuildShl(fn->builder, lhs, rhs, target_name);
 		break;
 	case OP_LSR:
-		assert(!symbol_is_fp_type(insn->type));
+		assert(!symbol_is_fp_type(insn->target->ctype));
 		target = LLVMBuildLShr(fn->builder, lhs, rhs, target_name);
 		break;
 	case OP_ASR:
-		assert(!symbol_is_fp_type(insn->type));
+		assert(!symbol_is_fp_type(insn->target->ctype));
 		target = LLVMBuildAShr(fn->builder, lhs, rhs, target_name);
 		break;
 	
 	/* Logical */
 	case OP_AND:
-		assert(!symbol_is_fp_type(insn->type));
+		assert(!symbol_is_fp_type(insn->target->ctype));
 		target = LLVMBuildAnd(fn->builder, lhs, rhs, target_name);
 		break;
 	case OP_OR:
-		assert(!symbol_is_fp_type(insn->type));
+		assert(!symbol_is_fp_type(insn->target->ctype));
 		target = LLVMBuildOr(fn->builder, lhs, rhs, target_name);
 		break;
 	case OP_XOR:
-		assert(!symbol_is_fp_type(insn->type));
+		assert(!symbol_is_fp_type(insn->target->ctype));
 		target = LLVMBuildXor(fn->builder, lhs, rhs, target_name);
 		break;
 	case OP_AND_BOOL: {
 		LLVMValueRef x, y;
 
-		assert(!symbol_is_fp_type(insn->type));
+		assert(!symbol_is_fp_type(insn->target->ctype));
 
 		y = LLVMBuildICmp(fn->builder, LLVMIntNE, lhs, LLVMConstInt(LLVMTypeOf(lhs), 0, 0), "y");
 		x = LLVMBuildICmp(fn->builder, LLVMIntNE, rhs, LLVMConstInt(LLVMTypeOf(rhs), 0, 0), "x");
@@ -534,7 +534,7 @@ static void output_op_binary(struct function *fn, struct instruction *insn)
 	case OP_OR_BOOL: {
 		LLVMValueRef tmp;
 
-		assert(!symbol_is_fp_type(insn->type));
+		assert(!symbol_is_fp_type(insn->target->ctype));
 
 		tmp = LLVMBuildOr(fn->builder, rhs, lhs, "tmp");
 
@@ -914,7 +914,7 @@ static void output_op_ptrcast(struct function *fn, struct instruction *insn)
 
 	pseudo_name(insn->target, target_name);
 
-	assert(!symbol_is_fp_type(insn->type));
+	assert(!symbol_is_fp_type(insn->target->ctype));
 
 	target = LLVMBuildBitCast(fn->builder, src, insn_symbol_type(fn->module, insn), target_name);
 
@@ -932,9 +932,9 @@ static void output_op_cast(struct function *fn, struct instruction *insn, LLVMOp
 
 	pseudo_name(insn->target, target_name);
 
-	assert(!symbol_is_fp_type(insn->type));
+	assert(!symbol_is_fp_type(insn->target->ctype));
 
-	if (insn->size < LLVMGetIntTypeWidth(LLVMTypeOf(src)))
+	if (instruction_size(insn) < LLVMGetIntTypeWidth(LLVMTypeOf(src)))
 		target = LLVMBuildTrunc(fn->builder, src, insn_symbol_type(fn->module, insn), target_name);
 	else
 		target = LLVMBuildCast(fn->builder, op, src, insn_symbol_type(fn->module, insn), target_name);
@@ -960,7 +960,7 @@ static void output_op_copy(struct function *fn, struct instruction *insn,
 	 * than using "X + 0" simply to produce a new LLVM pseudo
 	 */
 
-	if (symbol_is_fp_type(insn->type))
+	if (symbol_is_fp_type(insn->target->ctype))
 		target = LLVMBuildFAdd(fn->builder, src,
 			LLVMConstReal(const_type, 0.0), target_name);
 	else
