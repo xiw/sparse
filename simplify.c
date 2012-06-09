@@ -685,19 +685,6 @@ static int simplify_cast(struct instruction *insn)
 		goto simplify;
 	}
 
-	/* A cast of a "and" might be a no-op.. */
-	if (src->type == PSEUDO_REG) {
-		struct instruction *def = src->def;
-		if (def->opcode == OP_AND && instruction_size(def) >= size) {
-			pseudo_t val = def->src2;
-			if (val->type == PSEUDO_VAL) {
-				unsigned long long value = val->value;
-				if (!(value >> (size-1)))
-					goto simplify;
-			}
-		}
-	}
-
 	if (size == orig_size) {
 		int op = (orig_type->ctype.modifiers & MOD_SIGNED) ? OP_SCAST : OP_CAST;
 		if (insn->opcode == op)
