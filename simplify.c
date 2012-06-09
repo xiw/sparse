@@ -303,7 +303,7 @@ static int simplify_asr(struct instruction *insn, pseudo_t pseudo, long long val
 
 	if (value >= size) {
 		warning(insn->pos, "right shift by bigger than source value");
-		return replace_with_pseudo(insn, value_pseudo(0));
+		return replace_with_pseudo(insn, value_pseudo(pseudo->ctype, 0));
 	}
 	if (!value)
 		return replace_with_pseudo(insn, pseudo);
@@ -318,7 +318,7 @@ static int simplify_constant_rightside(struct instruction *insn)
 	case OP_SUB:
 		if (value) {
 			insn->opcode = OP_ADD;
-			insn->src2 = value_pseudo(-value);
+			insn->src2 = value_pseudo(insn->src2->ctype, -value);
 			return REPEAT_CSE;
 		}
 	/* Fall through */
@@ -480,7 +480,7 @@ static int simplify_constant_binop(struct instruction *insn)
 	}
 	res &= bits;
 
-	replace_with_pseudo(insn, value_pseudo(res));
+	replace_with_pseudo(insn, value_pseudo(insn->target->ctype, res));
 	return REPEAT_CSE;
 }
 
@@ -574,7 +574,7 @@ static int simplify_constant_unop(struct instruction *insn)
 	mask = 1ULL << (insn->size-1);
 	res &= mask | (mask-1);
 	
-	replace_with_pseudo(insn, value_pseudo(res));
+	replace_with_pseudo(insn, value_pseudo(insn->target->ctype, res));
 	return REPEAT_CSE;
 }
 
@@ -681,7 +681,7 @@ static int simplify_cast(struct instruction *insn)
 	if (constant(src)) {
 		int sign = orig_type->ctype.modifiers & MOD_SIGNED;
 		long long val = get_cast_value(src->value, orig_size, size, sign);
-		src = value_pseudo(val);
+		src = value_pseudo(insn->target->ctype, val);
 		goto simplify;
 	}
 

@@ -33,6 +33,7 @@ struct pseudo {
 	enum pseudo_type type;
 	struct pseudo_user_list *users;
 	struct ident *ident;
+	struct symbol *ctype;
 	union {
 		struct symbol *sym;
 		struct instruction *def;
@@ -335,8 +336,8 @@ extern void insert_select(struct basic_block *bb, struct instruction *br, struct
 extern void insert_branch(struct basic_block *bb, struct instruction *br, struct basic_block *target);
 
 pseudo_t alloc_phi(struct basic_block *source, pseudo_t pseudo, int size);
-pseudo_t alloc_pseudo(struct instruction *def);
-pseudo_t value_pseudo(long long val);
+pseudo_t alloc_pseudo(struct symbol *ctype, struct instruction *def);
+pseudo_t value_pseudo(struct symbol *ctype, long long val);
 
 struct entrypoint *linearize_symbol(struct symbol *sym);
 int unssa(struct entrypoint *ep);

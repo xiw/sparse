@@ -126,7 +126,7 @@ static void simplify_loads(struct basic_block *bb)
 				if (!dominators) {
 					if (local) {
 						assert(pseudo->type != PSEUDO_ARG);
-						convert_load_instruction(insn, value_pseudo(0));
+						convert_load_instruction(insn, value_pseudo(insn->target->ctype, 0));
 					}
 					goto next_load;
 				}

@@ -734,12 +734,13 @@ static void add_branch(struct entrypoint *ep, struct expression *expr, pseudo_t 
 }
 
 /* Dummy pseudo allocator */
-pseudo_t alloc_pseudo(struct instruction *def)
+pseudo_t alloc_pseudo(struct symbol *ctype, struct instruction *def)
 {
 	static int nr = 0;
 	struct pseudo * pseudo = __alloc_pseudo(0);
 	pseudo->type = PSEUDO_REG;
 	pseudo->nr = ++nr;
+	pseudo->ctype = ctype;
 	pseudo->def = def;
 	return pseudo;
 }
@@ -767,6 +768,7 @@ static pseudo_t symbol_pseudo(struct entrypoint *ep, struct symbol *sym)
 		pseudo->type = PSEUDO_SYM;
 		pseudo->sym = sym;
 		pseudo->ident = sym->ident;
+		pseudo->ctype = sym->ctype.base_type;
 		sym->pseudo = pseudo;
 		add_pseudo(&ep->accesses, pseudo);
 	}
@@ -774,21 +776,22 @@ static pseudo_t symbol_pseudo(struct entrypoint *ep, struct symbol *sym)
 	return pseudo;
 }
 
-pseudo_t value_pseudo(long long val)
+pseudo_t value_pseudo(struct symbol *ctype, long long val)
 {
 #define MAX_VAL_HASH 64
 	static struct pseudo_list *prev[MAX_VAL_HASH];
-	int hash = val & (MAX_VAL_HASH-1);
+	int hash = (val ^ type_size(ctype)) & (MAX_VAL_HASH-1);
 	struct pseudo_list **list = prev + hash;
 	pseudo_t pseudo;
 
 	FOR_EACH_PTR(*list, pseudo) {
-		if (pseudo->value == val)
+		if (pseudo->ctype == ctype && pseudo->value == val)
 			return pseudo;
 	} END_FOR_EACH_PTR(pseudo);
 
 	pseudo = __alloc_pseudo(0);
 	pseudo->type = PSEUDO_VAL;
+	pseudo->ctype = ctype;
 	pseudo->value = val;
 	add_pseudo(list, pseudo);
 
@@ -796,13 +799,14 @@ pseudo_t value_pseudo(long long val)
 	return pseudo;
 }
 
-static pseudo_t argument_pseudo(struct entrypoint *ep, int nr)
+static pseudo_t argument_pseudo(struct entrypoint *ep, struct symbol *ctype, int nr)
 {
 	pseudo_t pseudo = __alloc_pseudo(0);
 	struct instruction *entry = ep->entry;
 
 	pseudo->type = PSEUDO_ARG;
 	pseudo->nr = nr;
+	pseudo->ctype = ctype;
 	pseudo->def = entry;
 	add_pseudo(&entry->arg_list, pseudo);
 
@@ -818,6 +822,7 @@ pseudo_t alloc_phi(struct basic_block *source, pseudo_t pseudo, int size)
 
 	phi->type = PSEUDO_PHI;
 	phi->nr = ++nr;
+	phi->ctype = pseudo->ctype;
 	phi->def = insn;
 
 	use_pseudo(insn, pseudo, &insn->phi_src);
@@ -911,7 +916,7 @@ static pseudo_t add_load(struct entrypoint *ep, struct access_data *ad)
 		return new;
 
 	insn = alloc_typed_instruction(OP_LOAD, ad->source_type);
-	new = alloc_pseudo(insn);
+	new = alloc_pseudo(ad->source_type, insn);
 	ad->origval = new;
 
 	insn->target = new;
@@ -946,10 +951,10 @@ static pseudo_t linearize_store_gen(struct entrypoint *ep,
 		unsigned long long mask = (1ULL << ad->bit_size)-1;
 
 		if (shift) {
-			store = add_binary_op(ep, ad->source_type, OP_SHL, value, value_pseudo(shift));
+			store = add_binary_op(ep, ad->source_type, OP_SHL, value, value_pseudo(value->ctype, shift));
 			mask <<= shift;
 		}
-		orig = add_binary_op(ep, ad->source_type, OP_AND, orig, value_pseudo(~mask));
+		orig = add_binary_op(ep, ad->source_type, OP_AND, orig, value_pseudo(orig->ctype, ~mask));
 		store = add_binary_op(ep, ad->source_type, OP_OR, orig, store);
 	}
 	add_store(ep, ad, store);
@@ -959,7 +964,7 @@ static pseudo_t linearize_store_gen(struct entrypoint *ep,
 static pseudo_t add_binary_op(struct entrypoint *ep, struct symbol *ctype, int op, pseudo_t left, pseudo_t right)
 {
 	struct instruction *insn = alloc_typed_instruction(op, ctype);
-	pseudo_t target = alloc_pseudo(insn);
+	pseudo_t target = alloc_pseudo(ctype, insn);
 	insn->target = target;
 	use_pseudo(insn, left, &insn->src1);
 	use_pseudo(insn, right, &insn->src2);
@@ -970,17 +975,17 @@ static pseudo_t add_binary_op(struct entrypoint *ep, struct symbol *ctype, int o
 static pseudo_t add_setval(struct entrypoint *ep, struct symbol *ctype, struct expression *val)
 {
 	struct instruction *insn = alloc_typed_instruction(OP_SETVAL, ctype);
-	pseudo_t target = alloc_pseudo(insn);
+	pseudo_t target = alloc_pseudo(ctype, insn);
 	insn->target = target;
 	insn->val = val;
 	add_one_insn(ep, insn);
 	return target;
 }
 
-static pseudo_t add_symbol_address(struct entrypoint *ep, struct symbol *sym)
+static pseudo_t add_symbol_address(struct entrypoint *ep, struct symbol *ctype, struct symbol *sym)
 {
 	struct instruction *insn = alloc_instruction(OP_SYMADDR, bits_in_pointer);
-	pseudo_t target = alloc_pseudo(insn);
+	pseudo_t target = alloc_pseudo(ctype, insn);
 
 	insn->target = target;
 	use_pseudo(insn, symbol_pseudo(ep, sym), &insn->symbol);
@@ -993,7 +998,7 @@ static pseudo_t linearize_load_gen(struct entrypoint *ep, struct access_data *ad
 	pseudo_t new = add_load(ep, ad);
 
 	if (ad->bit_offset) {
-		pseudo_t shift = value_pseudo(ad->bit_offset);
+		pseudo_t shift = value_pseudo(new->ctype, ad->bit_offset);
 		pseudo_t newval = add_binary_op(ep, ad->source_type, OP_LSR, new, shift);
 		new = newval;
 	}
@@ -1024,7 +1029,7 @@ static pseudo_t linearize_inc_dec(struct entrypoint *ep, struct expression *expr
 		return VOID;
 
 	old = linearize_load_gen(ep, &ad);
-	one = value_pseudo(expr->op_value);
+	one = value_pseudo(expr->unop->ctype, expr->op_value);
 	new = add_binary_op(ep, expr->ctype, op, old, one);
 	linearize_store_gen(ep, new, &ad);
 	finish_address_gen(ep, &ad);
@@ -1034,7 +1039,7 @@ static pseudo_t linearize_inc_dec(struct entrypoint *ep, struct expression *expr
 static pseudo_t add_uniop(struct entrypoint *ep, struct expression *expr, int op, pseudo_t src)
 {
 	struct instruction *insn = alloc_typed_instruction(op, expr->ctype);
-	pseudo_t new = alloc_pseudo(insn);
+	pseudo_t new = alloc_pseudo(expr->ctype, insn);
 
 	insn->target = new;
 	use_pseudo(insn, src, &insn->src1);
@@ -1046,7 +1051,7 @@ static pseudo_t linearize_slice(struct entrypoint *ep, struct expression *expr)
 {
 	pseudo_t pre = linearize_expression(ep, expr->base);
 	struct instruction *insn = alloc_typed_instruction(OP_SLICE, expr->ctype);
-	pseudo_t new = alloc_pseudo(insn);
+	pseudo_t new = alloc_pseudo(expr->ctype, insn);
 
 	insn->target = new;
 	insn->from = expr->r_bitpos;
@@ -1063,7 +1068,7 @@ static pseudo_t linearize_regular_preop(struct entrypoint *ep, struct expression
 	case '+':
 		return pre;
 	case '!': {
-		pseudo_t zero = value_pseudo(0);
+		pseudo_t zero = value_pseudo(pre->ctype, 0);
 		return add_binary_op(ep, expr->unop->ctype, OP_SET_EQ, pre, zero);
 	}
 	case '~':
@@ -1130,7 +1135,7 @@ static pseudo_t cast_pseudo(struct entrypoint *ep, pseudo_t src, struct symbol *
 	if (from->bit_size < 0 || to->bit_size < 0)
 		return VOID;
 	insn = alloc_cast_instruction(from, to);
-	result = alloc_pseudo(insn);
+	result = alloc_pseudo(to, insn);
 	insn->target = result;
 	insn->orig_type = from;
 	use_pseudo(insn, src, &insn->src);
@@ -1235,7 +1240,7 @@ static pseudo_t linearize_call_expression(struct entrypoint *ep, struct expressi
 	use_pseudo(insn, call, &insn->func);
 	retval = VOID;
 	if (expr->ctype != &void_ctype)
-		retval = alloc_pseudo(insn);
+		retval = alloc_pseudo(expr->ctype, insn);
 	insn->target = retval;
 	add_one_insn(ep, insn);
 
@@ -1309,7 +1314,7 @@ static pseudo_t linearize_select(struct entrypoint *ep, struct expression *expr)
 	use_pseudo(insn, true, &insn->src2);
 	use_pseudo(insn, false, &insn->src3);
 
-	res = alloc_pseudo(insn);
+	res = alloc_pseudo(expr->ctype, insn);
 	insn->target = res;
 	add_one_insn(ep, insn);
 	return res;
@@ -1329,7 +1334,7 @@ static pseudo_t add_join_conditional(struct entrypoint *ep, struct expression *e
 	phi_node = alloc_typed_instruction(OP_PHI, expr->ctype);
 	use_pseudo(phi_node, phi1, add_pseudo(&phi_node->phi_list, phi1));
 	use_pseudo(phi_node, phi2, add_pseudo(&phi_node->phi_list, phi2));
-	phi_node->target = target = alloc_pseudo(phi_node);
+	phi_node->target = target = alloc_pseudo(expr->ctype, phi_node);
 	add_one_insn(ep, phi_node);
 	return target;
 }	
@@ -1533,7 +1538,7 @@ static void linearize_argument(struct entrypoint *ep, struct symbol *arg, int nr
 	ad.source_type = arg;
 	ad.result_type = arg;
 	ad.address = symbol_pseudo(ep, arg);
-	linearize_store_gen(ep, argument_pseudo(ep, nr), &ad);
+	linearize_store_gen(ep, argument_pseudo(ep, arg, nr), &ad);
 	finish_address_gen(ep, &ad);
 }
 
@@ -1546,10 +1551,10 @@ pseudo_t linearize_expression(struct entrypoint *ep, struct expression *expr)
 	switch (expr->type) {
 	case EXPR_SYMBOL:
 		linearize_one_symbol(ep, expr->symbol);
-		return add_symbol_address(ep, expr->symbol);
+		return add_symbol_address(ep, expr->ctype, expr->symbol);
 
 	case EXPR_VALUE:
-		return value_pseudo(expr->value);
+		return value_pseudo(expr->ctype, expr->value);
 
 	case EXPR_STRING: case EXPR_FVALUE: case EXPR_LABEL:
 		return add_setval(ep, expr->ctype, expr);
@@ -1730,7 +1735,7 @@ static void add_asm_output(struct entrypoint *ep, struct instruction *insn, stru
 	const char *constraint, const struct ident *ident)
 {
 	struct access_data ad = { NULL, };
-	pseudo_t pseudo = alloc_pseudo(insn);
+	pseudo_t pseudo = alloc_pseudo(expr->ctype, insn);
 	struct asm_constraint *rule;
 
 	if (!expr || !linearize_address_gen(ep, expr, &ad))
@@ -1863,7 +1868,7 @@ static pseudo_t linearize_return(struct entrypoint *ep, struct statement *stmt)
 		pseudo_t phi;
 		if (!phi_node) {
 			phi_node = alloc_typed_instruction(OP_PHI, expr->ctype);
-			phi_node->target = alloc_pseudo(phi_node);
+			phi_node->target = alloc_pseudo(expr->ctype, phi_node);
 			phi_node->bb = bb_return;
 			add_instruction(&bb_return->insns, phi_node);
 		}

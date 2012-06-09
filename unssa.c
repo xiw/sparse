@@ -44,7 +44,7 @@ static void replace_phi_node(struct instruction *phi)
 {
 	pseudo_t tmp;
 
-	tmp = alloc_pseudo(NULL);
+	tmp = alloc_pseudo(phi->target->ctype, NULL);
 	tmp->type = phi->target->type;
 	tmp->ident = phi->target->ident;
 	tmp->def = NULL;		// defined by all the phisrc

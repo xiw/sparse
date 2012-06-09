@@ -462,7 +462,7 @@ found:
 		if (!local)
 			return 0;
 		check_access(insn);
-		convert_load_instruction(insn, value_pseudo(0));
+		convert_load_instruction(insn, value_pseudo(insn->target->ctype, 0));
 		return 1;
 	}
 
