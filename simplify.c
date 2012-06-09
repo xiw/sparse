@@ -279,7 +279,7 @@ static unsigned int value_size(long long value)
  */
 static unsigned int operand_size(struct instruction *insn, pseudo_t pseudo)
 {
-	unsigned int size = insn->size;
+	unsigned int size = instruction_size(insn);
 
 	if (pseudo->type == PSEUDO_REG) {
 		struct instruction *src = pseudo->def;
@@ -375,7 +375,7 @@ static int simplify_constant_binop(struct instruction *insn)
 	unsigned long long ul, ur;
 	long long res, mask, bits;
 
-	mask = 1ULL << (insn->size-1);
+	mask = 1ULL << (instruction_size(insn)-1);
 	bits = mask | (mask-1);
 
 	if (left & mask)
@@ -571,7 +571,7 @@ static int simplify_constant_unop(struct instruction *insn)
 	default:
 		return 0;
 	}
-	mask = 1ULL << (insn->size-1);
+	mask = 1ULL << (instruction_size(insn)-1);
 	res &= mask | (mask-1);
 	
 	replace_with_pseudo(insn, value_pseudo(insn->target->ctype, res));
@@ -670,11 +670,11 @@ static int simplify_cast(struct instruction *insn)
 		return 0;
 
 	/* Keep casts with pointer on either side (not only case of OP_PTRCAST) */
-	if (is_ptr_type(orig_type) || is_ptr_type(insn->type))
+	if (is_ptr_type(orig_type) || is_ptr_type(insn->target->ctype))
 		return 0;
 
 	orig_size = orig_type->bit_size;
-	size = insn->size;
+	size = instruction_size(insn);
 	src = insn->src;
 
 	/* A cast of a constant? */
@@ -688,7 +688,7 @@ static int simplify_cast(struct instruction *insn)
 	/* A cast of a "and" might be a no-op.. */
 	if (src->type == PSEUDO_REG) {
 		struct instruction *def = src->def;
-		if (def->opcode == OP_AND && def->size >= size) {
+		if (def->opcode == OP_AND && instruction_size(def) >= size) {
 			pseudo_t val = def->src2;
 			if (val->type == PSEUDO_VAL) {
 				unsigned long long value = val->value;
@@ -854,7 +854,7 @@ static int simplify_branch(struct instruction *insn)
 		}
 		if (def->opcode == OP_CAST || def->opcode == OP_SCAST) {
 			int orig_size = def->orig_type ? def->orig_type->bit_size : 0;
-			if (def->size > orig_size) {
+			if (instruction_size(def) > orig_size) {
 				use_pseudo(insn, def->src, &insn->cond);
 				remove_usage(cond, &insn->cond);
 				return REPEAT_CSE;

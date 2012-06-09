@@ -896,7 +896,7 @@ static void do_binop(struct bb_state *state, struct instruction *insn, pseudo_t 
 	struct hardreg *dst;
 
 	dst = target_copy_reg(state, src->reg, insn->target);
-	output_insn(state, "%s.%d %s,%s", op, insn->size, show_op(state, src2), dst->name);
+	output_insn(state, "%s.%d %s,%s", op, instruction_size(insn), show_op(state, src2), dst->name);
 	put_operand(state, src);
 	put_operand(state, src2);
 	add_pseudo_reg(state, insn->target, dst);
@@ -983,7 +983,7 @@ static void kill_dead_pseudos(struct bb_state *state)
 
 static void generate_store(struct instruction *insn, struct bb_state *state)
 {
-	output_insn(state, "mov.%d %s,%s", insn->size, reg_or_imm(state, insn->target), address(state, insn));
+	output_insn(state, "mov.%d %s,%s", instruction_size(insn), reg_or_imm(state, insn->target), address(state, insn));
 }
 
 static void generate_load(struct instruction *insn, struct bb_state *state)
@@ -993,7 +993,7 @@ static void generate_load(struct instruction *insn, struct bb_state *state)
 
 	kill_dead_pseudos(state);
 	dst = target_reg(state, insn->target, NULL);
-	output_insn(state, "mov.%d %s,%s", insn->size, input, dst->name);
+	output_insn(state, "mov.%d %s,%s", instruction_size(insn), input, dst->name);
 }
 
 static void kill_pseudo(struct bb_state *state, pseudo_t pseudo)
@@ -1031,7 +1031,7 @@ static void generate_cast(struct bb_state *state, struct instruction *insn)
 	struct hardreg *src = getreg(state, insn->src, insn->target);
 	struct hardreg *dst;
 	unsigned int old = insn->orig_type ? insn->orig_type->bit_size : 0;
-	unsigned int new = insn->size;
+	unsigned int new = instruction_size(insn);
 
 	/*
 	 * Cast to smaller type? Ignore the high bits, we
@@ -1050,7 +1050,7 @@ static void generate_cast(struct bb_state *state, struct instruction *insn)
 		unsigned long long mask;
 		mask = ~(~0ULL << old);
 		mask &= ~(~0ULL << new);
-		output_insn(state, "andl.%d $%#llx,%s", insn->size, mask, dst->name);
+		output_insn(state, "andl.%d $%#llx,%s", instruction_size(insn), mask, dst->name);
 	}
 	add_pseudo_reg(state, insn->target, dst);
 }
@@ -1358,7 +1358,7 @@ static void generate_compare(struct bb_state *state, struct instruction *insn)
 	src = getreg(state, insn->src1, insn->target);
 	src2 = generic(state, insn->src2);
 
-	output_insn(state, "cmp.%d %s,%s", insn->size, src2, src->name);
+	output_insn(state, "cmp.%d %s,%s", instruction_size(insn), src2, src->name);
 
 	add_cc_cache(state, opcode, insn->target);
 }

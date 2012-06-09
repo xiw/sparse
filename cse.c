@@ -43,7 +43,7 @@ static void clean_up_one_instruction(struct basic_block *bb, struct instruction 
 		return;
 	assert(insn->bb == bb);
 	repeat_phase |= simplify_instruction(insn);
-	hash = (insn->opcode << 3) + (insn->size >> 3);
+	hash = (insn->opcode << 3) + (instruction_size(insn) >> 3);
 	switch (insn->opcode) {
 	case OP_SEL:
 		hash += hashval(insn->src3);
@@ -237,8 +237,8 @@ static int insn_compare(const void *_i1, const void *_i2)
 	default:
 		warning(i1->pos, "bad instruction on hash chain");
 	}
-	if (i1->size != i2->size)
-		return i1->size < i2->size ? -1 : 1;
+	if (instruction_size(i1) != instruction_size(i2))
+		return instruction_size(i1) < instruction_size(i2) ? -1 : 1;
 	return 0;
 }
 

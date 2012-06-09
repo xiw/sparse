@@ -69,11 +69,9 @@ struct asm_rules {
 DECLARE_ALLOCATOR(asm_rules);
 
 struct instruction {
-	unsigned opcode:8,
-		 size:24;
+	unsigned opcode;
 	struct basic_block *bb;
 	struct position pos;
-	struct symbol *type;
 	union {
 		pseudo_t target;
 		pseudo_t cond;		/* for branch and switch */
@@ -237,6 +235,12 @@ struct basic_block {
 	void *priv;
 };
 
+static inline int instruction_size(const struct instruction *insn)
+{
+	struct symbol *type = insn->target ? insn->target->ctype : NULL;
+	return type ? type->bit_size > 0 ? type->bit_size : 0 : 0;
+}
+
 static inline int is_branch_goto(struct instruction *br)
 {
 	return br && br->opcode==OP_BR && (!br->bb_true || !br->bb_false);
@@ -335,7 +339,7 @@ struct entrypoint {
 extern void insert_select(struct basic_block *bb, struct instruction *br, struct instruction *phi, pseudo_t if_true, pseudo_t if_false);
 extern void insert_branch(struct basic_block *bb, struct instruction *br, struct basic_block *target);
 
-pseudo_t alloc_phi(struct basic_block *source, pseudo_t pseudo, int size);
+pseudo_t alloc_phi(struct basic_block *source, pseudo_t pseudo);
 pseudo_t alloc_pseudo(struct symbol *ctype, struct instruction *def);
 pseudo_t value_pseudo(struct symbol *ctype, long long val);
 

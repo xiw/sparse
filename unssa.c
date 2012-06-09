@@ -105,7 +105,6 @@ static void rewrite_phisrc_bb(struct basic_block *bb)
 
 				copy->bb = bb;
 				copy->opcode = OP_COPY;
-				copy->size = insn->size;
 				copy->pos = insn->pos;
 				copy->target = tmp;
 				copy->src = src;

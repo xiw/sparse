@@ -102,7 +102,7 @@ static void check_cast_instruction(struct instruction *insn)
 	struct symbol *orig_type = insn->orig_type;
 	if (orig_type) {
 		int old = orig_type->bit_size;
-		int new = insn->size;
+		int new = instruction_size(insn);
 		int oldsigned = (orig_type->ctype.modifiers & MOD_SIGNED) != 0;
 		int newsigned = insn->opcode == OP_SCAST;
 
