@@ -1153,7 +1153,6 @@ static pseudo_t linearize_assignment(struct entrypoint *ep, struct expression *e
 		return value;
 	if (expr->op != '=') {
 		pseudo_t oldvalue = linearize_load_gen(ep, &ad);
-		pseudo_t dst;
 		static const int op_trans[] = {
 			[SPECIAL_ADD_ASSIGN - SPECIAL_BASE] = OP_ADD,
 			[SPECIAL_SUB_ASSIGN - SPECIAL_BASE] = OP_SUB,
@@ -1171,10 +1170,8 @@ static pseudo_t linearize_assignment(struct entrypoint *ep, struct expression *e
 		if (!src)
 			return VOID;
 
-		oldvalue = cast_pseudo(ep, oldvalue, src->ctype, expr->ctype);
-		opcode = opcode_sign(op_trans[expr->op - SPECIAL_BASE], src->ctype);
-		dst = add_binary_op(ep, src->ctype, opcode, oldvalue, value);
-		value = cast_pseudo(ep, dst, expr->ctype, src->ctype);
+		opcode = opcode_sign(op_trans[expr->op - SPECIAL_BASE], expr->ctype);
+		value = add_binary_op(ep, expr->ctype, opcode, oldvalue, value);
 	}
 	value = linearize_store_gen(ep, value, &ad);
 	finish_address_gen(ep, &ad);
