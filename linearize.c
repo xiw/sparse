@@ -1019,12 +1019,13 @@ static pseudo_t linearize_inc_dec(struct entrypoint *ep, struct expression *expr
 	struct access_data ad = { NULL, };
 	pseudo_t old, new, one;
 	int op = expr->op == SPECIAL_INCREMENT ? OP_ADD : OP_SUB;
+	struct symbol *op_type = is_ptr_type(expr->ctype) ? size_t_ctype : expr->ctype;
 
 	if (!linearize_address_gen(ep, expr->unop, &ad))
 		return VOID;
 
 	old = linearize_load_gen(ep, &ad);
-	one = value_pseudo(expr->unop->ctype, expr->op_value);
+	one = value_pseudo(op_type, expr->op_value);
 	new = add_binary_op(ep, expr->ctype, op, old, one);
 	linearize_store_gen(ep, new, &ad);
 	finish_address_gen(ep, &ad);
