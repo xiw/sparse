@@ -92,6 +92,12 @@ void cast_value(struct expression *expr, struct symbol *newtype,
 	value = get_longlong(old);
 
 Int:
+	// _Bool requires a zero test rather than truncation.
+	if (is_bool_type(newtype)) {
+		expr->value = value ? 1 : 0;
+		return;
+	}
+
 	// Truncate it to the new size
 	signmask = 1ULL << (new_size-1);
 	mask = signmask | (signmask-1);
