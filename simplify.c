@@ -716,23 +716,6 @@ static int simplify_select(struct instruction *insn)
 		replace_with_pseudo(insn, take);
 		return REPEAT_CSE;
 	}
-	if (constant(src1) && constant(src2)) {
-		long long val1 = src1->value;
-		long long val2 = src2->value;
-
-		/* The pair 0/1 is special - replace with SETNE/SETEQ */
-		if ((val1 | val2) == 1) {
-			int opcode = OP_SET_EQ;
-			if (val1) {
-				src1 = src2;
-				opcode = OP_SET_NE;
-			}
-			insn->opcode = opcode;
-			/* insn->src1 is already cond */
-			insn->src2 = src1; /* Zero */
-			return REPEAT_CSE;
-		}
-	}
 	return 0;
 }
 
