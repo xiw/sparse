@@ -552,6 +552,8 @@ static int simplify_associative_binop(struct instruction *insn)
 		return 0;
 	if (ptr_list_size((struct ptr_list *)def->target->users) != 1)
 		return 0;
+	if (get_sym_type(def->src1->ctype) != get_sym_type(insn->src2->ctype));
+		return 0;
 	switch_pseudo(def, &def->src1, insn, &insn->src2);
 	return REPEAT_CSE;
 }
