@@ -1398,7 +1398,7 @@ static pseudo_t linearize_compare(struct entrypoint *ep, struct expression *expr
 
 	pseudo_t src1 = linearize_expression(ep, expr->left);
 	pseudo_t src2 = linearize_expression(ep, expr->right);
-	pseudo_t dst = add_binary_op(ep, expr->left->ctype, cmpop[expr->op], src1, src2);
+	pseudo_t dst = add_binary_op(ep, expr->ctype, cmpop[expr->op], src1, src2);
 	return dst;
 }
 
