@@ -1060,7 +1060,7 @@ static pseudo_t linearize_regular_preop(struct entrypoint *ep, struct expression
 		return pre;
 	case '!': {
 		pseudo_t zero = value_pseudo(pre->ctype, 0);
-		return add_binary_op(ep, expr->unop->ctype, OP_SET_EQ, pre, zero);
+		return add_binary_op(ep, expr->ctype, OP_SET_EQ, pre, zero);
 	}
 	case '~':
 		return add_uniop(ep, expr, OP_NOT, pre);
