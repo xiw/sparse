@@ -1124,6 +1124,10 @@ static pseudo_t cast_pseudo(struct entrypoint *ep, pseudo_t src, struct symbol *
 		return VOID;
 	if (from->bit_size < 0 || to->bit_size < 0)
 		return VOID;
+	if (is_bool_type(to)) {
+		pseudo_t zero = value_pseudo(src->ctype, 0);
+		return add_binary_op(ep, to, OP_SET_NE, src, zero);
+	}
 	insn = alloc_cast_instruction(from, to);
 	insn->orig_type = from;
 	use_pseudo(insn, src, &insn->src);
