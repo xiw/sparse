@@ -272,6 +272,18 @@ static struct expression * cast_to(struct expression *old, struct symbol *type)
 	if (old->ctype != &null_ctype && is_same_type(old, type))
 		return old;
 
+	/* bool requires a zero test */
+	if (is_bool_type(type)) {
+		expr = alloc_expression(old->pos, EXPR_COMPARE);
+		expr->op = SPECIAL_NOTEQUAL;
+		expr->ctype = type;
+		expr->left = old;
+		expr->right = alloc_expression(old->pos, EXPR_VALUE);
+		expr->right->ctype = old->ctype;
+		expr->right->value = 0;
+		return expr;
+	}
+
 	/*
 	 * See if we can simplify the op. Move the cast down.
 	 */
