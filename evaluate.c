@@ -873,6 +873,8 @@ static struct symbol *evaluate_logical(struct expression *expr)
 		return NULL;
 
 	expr->ctype = &bool_ctype;
+	expr->left = cast_to(expr->left, &bool_ctype);
+	expr->right = cast_to(expr->right, &bool_ctype);
 	if (expr->flags) {
 		if (!(expr->left->flags & expr->right->flags & Int_const_expr))
 			expr->flags = 0;
